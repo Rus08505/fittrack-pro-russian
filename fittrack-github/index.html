@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FitTrack Pro — простая версия</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: '#06b6d4',
+              secondary: '#3b82f6',
+              dark: '#0f172a',
+              card: '#1e293b',
+            },
+            fontFamily: {
+              sans: ['Inter', 'system-ui', 'sans-serif'],
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      body {
+        background-color: #0f172a;
+        color: #ffffff;
+      }
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    </style>
+    <!-- React UMD + Babel for JSX -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  </head>
+  <body class="min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+      const {
+        useState,
+        useEffect,
+        useContext,
+        createContext,
+        useCallback,
+      } = React;
+
+      const ScreenName = {
+        WORKOUTS: 'WORKOUTS',
+        CALORIES: 'CALORIES',
+        GUIDE: 'GUIDE',
+        STATS: 'STATS',
+        SETTINGS: 'SETTINGS',
+        CALENDAR: 'CALENDAR',
+        NOTES: 'NOTES',
+      };
+
+      const INITIAL_EXERCISES = [
+        { id: '1', name: 'Ходьба', lvl: 1, isActive: false },
+        { id: '2', name: 'Бег', lvl: 1, isActive: false },
+        { id: '3', name: 'Велотренажёр', lvl: 1, isActive: false },
+        { id: '4', name: 'Пресс', lvl: 1, isActive: false },
+        { id: '5', name: 'Скакалка', lvl: 1, isActive: false },
+      ];
+
+      const INITIAL_PROFILE = {
+        height: 0,
+        weight: 0,
+        targetWeight: 0,
+        age: 0,
+        dailyCaloriesTarget: 2000,
+        remindersEnabled: false,
+      };
+
+      const NOTE_CATEGORIES = ['Идеи', 'Тренировки', 'Цели', 'Напоминания'];
+
+      const AppContext = createContext(null);
+      const STORAGE_KEY = 'fitTrackPro_data_v1';
+
+      function AppProvider({ children }) {
+        const [currentScreen, setCurrentScreen] = useState(ScreenName.WORKOUTS);
+
+        const [profile, setProfileState] = useState(INITIAL_PROFILE);
+        const [exercises, setExercises] = useState(INITIAL_EXERCISES);
+        const [workoutHistory, setWorkoutHistory] = useState([]);
+        const [meals, setMeals] = useState([]);
+        const [notes, setNotes] = useState([]);
+        const [manualCalendarMarks, setManualCalendarMarks] = useState([]);
+
+        useEffect(() => {
+          try {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              setProfileState(parsed.profile || INITIAL_PROFILE);
+              setExercises(
+                parsed.exercises && parsed.exercises.length
+                  ? parsed.exercises
+                  : INITIAL_EXERCISES
+              );
+              setWorkoutHistory(parsed.workoutHistory || []);
+              setMeals(parsed.meals || []);
+              setNotes(parsed.notes || []);
+              setManualCalendarMarks(parsed.manualCalendarMarks || []);
+            }
+          } catch (e) {
+            console.error('Failed to load data', e);
+          }
+        }, []);
+
+        useEffect(() => {
+          const data = {
+            profile,
+            exercises,
+            workoutHistory,
+            meals,
+            notes,
+            manualCalendarMarks,
+          };
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+          } catch (e) {
+            console.error('Failed to save data', e);
+          }
+        }, [profile, exercises, workoutHistory, meals, notes, manualCalendarMarks]);
+
+        const setProfile = (newProfile) => setProfileState(newProfile);
+
+        const toggleExercise = (id) => {
+          setExercises((prev) =>
+            prev.map((ex) =>
+              ex.id === id ? { ...ex, isActive: !ex.isActive } : ex
+            )
+          );
+        };
+
+        const addWorkoutSession = (session) => {
+          setWorkoutHistory((prev) => [...prev, session]);
+        };
+
+        const addMeal = (meal) => {
+          setMeals((prev) => [...prev, meal]);
+        };
+
+        const deleteMeal = (id) => {
+          setMeals((prev) => prev.filter((m) => m.id !== id));
+        };
+
+        const addNote = (note) => {
+          setNotes((prev) => [note, ...prev]);
+        };
+
+        const deleteNote = (id) => {
+          setNotes((prev) => prev.filter((n) => n.id !== id));
+        };
+
+        const toggleCalendarMark = (dateStr) => {
+          setManualCalendarMarks((prev) =>
+            prev.includes(dateStr)
+              ? prev.filter((d) => d !== dateStr)
+              : [...prev, dateStr]
+          );
+        };
+
+        const navigate = (screen) => {
+          setCurrentScreen(screen);
+          window.scrollTo(0, 0);
+        };
+
+        const value = {
+          currentScreen,
+          navigate,
+          profile,
+          setProfile,
+          exercises,
+          toggleExercise,
+          workoutHistory,
+          addWorkoutSession,
+          meals,
+          addMeal,
+          deleteMeal,
+          notes,
+          addNote,
+          deleteNote,
+          manualCalendarMarks,
+          toggleCalendarMark,
+        };
+
+        return (
+          <AppContext.Provider value={value}>
+            {children}
+          </AppContext.Provider>
+        );
+      }
+
+      function useApp() {
+        const ctx = useContext(AppContext);
+        if (!ctx) {
+          throw new Error('useApp must be used within AppProvider');
+        }
+        return ctx;
+      }
+
+      function Layout({ children }) {
+        const { currentScreen, navigate } = useApp();
+        const isFullScreen =
+          currentScreen === ScreenName.CALENDAR ||
+          currentScreen === ScreenName.NOTES;
+
+        const navItems = [
+          { id: ScreenName.WORKOUTS, label: 'Тренировки', icon: '🏋️' },
+          { id: ScreenName.CALORIES, label: 'Калории', icon: '🔥' },
+          { id: ScreenName.GUIDE, label: 'Справка', icon: '📘' },
+          { id: ScreenName.STATS, label: 'Статистика', icon: '📊' },
+          { id: ScreenName.SETTINGS, label: 'Настройки', icon: '⚙️' },
+        ];
+
+        return (
+          <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans relative overflow-hidden">
+            <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
+            <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-secondary/10 rounded-full blur-[100px] pointer-events-none" />
+
+            <main
+              className={
+                'flex-1 overflow-y-auto no-scrollbar pb-24 ' +
+                (isFullScreen ? 'z-20 bg-slate-900' : '')
+              }
+            >
+              {children}
+            </main>
+
+            {!isFullScreen && (
+              <nav className="fixed bottom-0 left-0 w-full bg-slate-900/90 backdrop-blur-md border-t border-slate-800 pb-safe z-50">
+                <div className="flex justify-around items-center h-16">
+                  {navItems.map((item) => {
+                    const isActive = currentScreen === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => navigate(item.id)}
+                        className={
+                          'flex flex-col items-center justify-center w-full h-full transition-colors duration-200 ' +
+                          (isActive
+                            ? 'text-primary'
+                            : 'text-slate-500 hover:text-slate-300')
+                        }
+                      >
+                        <div
+                          className={
+                            'mb-1 transition-transform ' +
+                            (isActive ? 'scale-110' : '')
+                          }
+                        >
+                          <span className="text-lg">{item.icon}</span>
+                        </div>
+                        <span className="text-[10px] font-medium">
+                          {item.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </nav>
+            )}
+          </div>
+        );
+      }
+
+      function WorkoutsScreen() {
+        const { exercises, toggleExercise, addWorkoutSession, navigate } =
+          useApp();
+        const [isRunning, setIsRunning] = useState(false);
+        const [time, setTime] = useState(0);
+
+        const activeExercises = exercises.filter((e) => e.isActive);
+        const primaryExercise =
+          activeExercises.length > 0 ? activeExercises[0] : null;
+
+        useEffect(() => {
+          let interval = null;
+          if (isRunning) {
+            interval = setInterval(() => {
+              setTime((prev) => prev + 1);
+            }, 1000);
+          }
+          return () => {
+            if (interval) clearInterval(interval);
+          };
+        }, [isRunning]);
+
+        const handleStop = useCallback(() => {
+          setIsRunning(false);
+          if (time > 0) {
+            const kcalPerMin =
+              activeExercises.length > 0 ? 6 + activeExercises.length : 4;
+            const durationMin = time / 60;
+            const burned = Math.round(durationMin * kcalPerMin);
+
+            addWorkoutSession({
+              id: Date.now().toString(),
+              date: new Date().toISOString(),
+              durationSeconds: time,
+              caloriesBurned: burned,
+            });
+            setTime(0);
+          }
+        }, [time, activeExercises.length, addWorkoutSession]);
+
+        const formatTime = (seconds) => {
+          const h = Math.floor(seconds / 3600);
+          const m = Math.floor((seconds % 3600) / 60);
+          const s = seconds % 60;
+          const pad = (n) => String(n).padStart(2, '0');
+          return h > 0
+            ? `${pad(h)}:${pad(m)}:${pad(s)}`
+            : `${pad(m)}:${pad(s)}`;
+        };
+
+        return (
+          <div className="p-4 space-y-6">
+            <div className="flex justify-between items-center pt-2">
+              <h1 className="text-2xl font-bold tracking-tight">ТРЕНИРОВКИ</h1>
+              <button
+                onClick={() => navigate(ScreenName.CALENDAR)}
+                className="bg-slate-800 hover:bg-slate-700 p-2 rounded-full transition-colors"
+              >
+                <span className="text-primary text-xl">📅</span>
+              </button>
+            </div>
+
+            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-3xl p-8 flex flex-col items-center justify-center relative overflow-hidden shadow-2xl">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
+
+              <h2 className="text-xl font-medium text-slate-300 mb-2 text-center">
+                {primaryExercise
+                  ? primaryExercise.name
+                  : 'Нет выбранного упражнения'}
+              </h2>
+
+              <div className="text-6xl font-mono font-bold text-white mb-4 tracking-wider">
+                {formatTime(time)}
+              </div>
+
+              <p className="text-sm text-slate-400 mb-8">
+                {primaryExercise
+                  ? `LVL ${primaryExercise.lvl} / 30 мин`
+                  : 'Выберите упражнение'}
+              </p>
+
+              <div className="flex gap-4 w-full justify-center">
+                {!isRunning ? (
+                  <button
+                    onClick={() => setIsRunning(true)}
+                    className="flex items-center justify-center gap-2 bg-primary hover:bg-cyan-400 text-slate-900 font-bold py-4 px-12 rounded-2xl w-full transition-all active:scale-95"
+                  >
+                    <span>▶</span>
+                    <span>СТАРТ</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStop}
+                    className="flex items-center justify-center gap-2 bg-red-500 hover:bg-red-400 text-white font-bold py-4 px-12 rounded-2xl w-full transition-all active:scale-95"
+                  >
+                    <span>■</span>
+                    <span>СТОП</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3 pb-4">
+              {exercises.map((ex) => (
+                <div
+                  key={ex.id}
+                  className={
+                    'flex items-center justify-between p-4 rounded-2xl border transition-all duration-200 ' +
+                    (ex.isActive
+                      ? 'bg-slate-800 border-primary/50 shadow-[0_0_15px_rgba(6,182,212,0.15)]'
+                      : 'bg-slate-800/30 border-slate-800 hover:bg-slate-800')
+                  }
+                >
+                  <div className="flex flex-col">
+                    <span
+                      className={
+                        'text-lg font-medium ' +
+                        (ex.isActive ? 'text-white' : 'text-slate-400')
+                      }
+                    >
+                      {ex.name}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      Базовая нагрузка
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => !isRunning && toggleExercise(ex.id)}
+                    disabled={isRunning}
+                    className={
+                      'w-14 h-8 rounded-full flex items-center transition-colors px-1 ' +
+                      (ex.isActive ? 'bg-primary' : 'bg-slate-600') +
+                      (isRunning
+                        ? ' opacity-50 cursor-not-allowed'
+                        : ' cursor-pointer')
+                    }
+                  >
+                    <div
+                      className={
+                        'w-6 h-6 rounded-full bg-white shadow-md transform transition-transform ' +
+                        (ex.isActive ? 'translate-x-6' : 'translate-x-0')
+                      }
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      function CaloriesScreen() {
+        const { profile, meals, workoutHistory, addMeal, deleteMeal } = useApp();
+
+        const [newMealName, setNewMealName] = useState('');
+        const [newMealCals, setNewMealCals] = useState('');
+
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        const eatenToday = meals
+          .filter((m) => m.date.startsWith(todayStr))
+          .reduce((sum, m) => sum + m.calories, 0);
+
+        const burnedToday = workoutHistory
+          .filter((w) => w.date.startsWith(todayStr))
+          .reduce((sum, w) => sum + w.caloriesBurned, 0);
+
+        const dailyTarget =
+          profile.dailyCaloriesTarget > 0 ? profile.dailyCaloriesTarget : 2000;
+
+        const remaining = dailyTarget - (eatenToday - burnedToday);
+
+        const handleAddMeal = (e) => {
+          e.preventDefault();
+          if (!newMealName || !newMealCals) return;
+
+          addMeal({
+            id: Date.now().toString(),
+            name: newMealName,
+            calories: parseInt(newMealCals, 10) || 0,
+            date: new Date().toISOString(),
+          });
+
+          setNewMealName('');
+          setNewMealCals('');
+        };
+
+        const todaysMeals = meals.filter((m) => m.date.startsWith(todayStr));
+
+        return (
+          <div className="p-4 space-y-6 pt-6">
+            <h1 className="text-2xl font-bold text-center mb-4">КАЛОРИИ</h1>
+
+            <div className="bg-slate-800 rounded-3xl p-6 text-center shadow-lg border border-slate-700">
+              <div className="mb-2 text-slate-400 text-sm uppercase tracking-wide">
+                До цели
+              </div>
+              <div
+                className={
+                  'text-6xl font-bold mb-6 ' +
+                  (remaining < 0 ? 'text-red-400' : 'text-white')
+                }
+              >
+                {Math.round(remaining)}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 border-t border-slate-700 pt-4">
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-500 mb-1">
+                    Сожжено сегодня
+                  </span>
+                  <span className="text-xl font-bold text-primary">
+                    {Math.round(burnedToday)}
+                  </span>
+                </div>
+                <div className="flex flex-col border-l border-slate-700">
+                  <span className="text-xs text-slate-500 mb-1">
+                    Съедено сегодня
+                  </span>
+                  <span className="text-xl font-bold text-orange-400">
+                    {Math.round(eatenToday)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-sm text-slate-400 text-center px-4 leading-relaxed">
+              Баланс между сожжёнными и съеденными калориями важен для
+              достижения вашей цели.
+            </div>
+
+            <form
+              onSubmit={handleAddMeal}
+              className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 space-y-3"
+            >
+              <h3 className="text-lg font-medium text-white mb-2">
+                Добавить приём пищи
+              </h3>
+              <div>
+                <input
+                  type="text"
+                  placeholder="Название (например, Обед)"
+                  value={newMealName}
+                  onChange={(e) => setNewMealName(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-primary placeholder-slate-500"
+                />
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  placeholder="Ккал"
+                  value={newMealCals}
+                  onChange={(e) => setNewMealCals(e.target.value)}
+                  className="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-primary placeholder-slate-500"
+                />
+                <button
+                  type="submit"
+                  className="bg-primary hover:bg-cyan-400 text-slate-900 font-bold p-3 rounded-xl flex items-center justify-center w-14 transition-colors"
+                >
+                  <span className="text-2xl leading-none">+</span>
+                </button>
+              </div>
+            </form>
+
+            <div className="space-y-3 pb-4">
+              <h3 className="text-lg font-medium text-white">Сегодня</h3>
+              {todaysMeals.length === 0 ? (
+                <p className="text-slate-500 text-center py-4">Нет записей</p>
+              ) : (
+                todaysMeals.map((meal) => (
+                  <div
+                    key={meal.id}
+                    className="flex items-center justify-between bg-slate-800 p-4 rounded-xl border border-slate-700/50"
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-medium text-white">
+                        {meal.name}
+                      </span>
+                      <span className="text-sm text-primary">
+                        {meal.calories} ккал
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => deleteMeal(meal.id)}
+                      className="text-slate-500 hover:text-red-400 transition-colors p-2"
+                    >
+                      🗑
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      function GuideScreen() {
+        const { navigate } = useApp();
+
+        const cards = [
+          {
+            title: 'Питание',
+            desc: 'Советы по правильному питанию',
+            icon: '🍎',
+            action: null,
+          },
+          {
+            title: 'Калории',
+            desc: 'Управление дневником калорий',
+            icon: '🔥',
+            action: () => navigate(ScreenName.CALORIES),
+          },
+          {
+            title: 'Календарь тренировок',
+            desc: 'История вашей активности',
+            icon: '📅',
+            action: () => navigate(ScreenName.CALENDAR),
+          },
+          {
+            title: 'Заметки',
+            desc: 'Ваши идеи и планы',
+            icon: '📝',
+            action: () => navigate(ScreenName.NOTES),
+          },
+        ];
+
+        return (
+          <div className="p-4 pt-6 space-y-6">
+            <h1 className="text-2xl font-bold text-center mb-6">СПРАВКА</h1>
+
+            <div className="grid gap-4">
+              {cards.map((card, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => card.action && card.action()}
+                  className={
+                    'bg-slate-800 p-4 rounded-2xl flex items-center gap-4 border border-slate-700 transition-all ' +
+                    (card.action
+                      ? 'cursor-pointer hover:bg-slate-750 hover:border-slate-600 active:scale-[0.98]'
+                      : 'opacity-80')
+                  }
+                >
+                  <div className="bg-slate-900 p-3 rounded-full text-2xl">
+                    {card.icon}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-white text-lg">
+                      {card.title}
+                    </h3>
+                    <p className="text-sm text-slate-400">{card.desc}</p>
+                  </div>
+                  {card.action && (
+                    <span className="text-slate-500 text-lg">›</span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 p-4 bg-slate-800/30 rounded-xl border border-dashed border-slate-700 text-center">
+              <p className="text-slate-500 text-sm">
+                Версия приложения: 1.0.0
+                <br />
+                Данные хранятся только на вашем устройстве.
+              </p>
+            </div>
+          </div>
+        );
+      }
+
+      function StatsScreen() {
+        const { profile, workoutHistory, exercises } = useApp();
+
+        const totalWorkouts = workoutHistory.length;
+        const totalSeconds = workoutHistory.reduce(
+          (acc, curr) => acc + curr.durationSeconds,
+          0
+        );
+        const totalBurned = workoutHistory.reduce(
+          (acc, curr) => acc + curr.caloriesBurned,
+          0
+        );
+
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+        const activeExercises = exercises.filter((e) => e.isActive);
+        const avgLevel =
+          activeExercises.length > 0
+            ? Math.round(
+                activeExercises.reduce((a, b) => a + b.lvl, 0) /
+                  activeExercises.length
+              )
+            : 0;
+
+        const StatBox = ({ label, value }) => (
+          <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex flex-col items-center justify-center text-center h-24">
+            <span className="text-2xl font-bold text-white">{value}</span>
+            <span className="text-xs text-slate-400 mt-1">{label}</span>
+          </div>
+        );
+
+        return (
+          <div className="p-4 pt-6 space-y-6">
+            <h1 className="text-2xl font-bold text-center mb-6">СТАТИСТИКА</h1>
+
+            <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
+              <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 tracking-wider">
+                Личные данные
+              </h3>
+              <div className="grid grid-cols-2 gap-y-4 gap-x-8">
+                <div className="flex justify-between border-b border-slate-700 pb-2">
+                  <span className="text-slate-400">Рост</span>
+                  <span className="text-white font-medium">
+                    {profile.height > 0 ? `${profile.height} см` : '-'}
+                  </span>
+                </div>
+                <div className="flex justify-between border-b border-slate-700 pb-2">
+                  <span className="text-slate-400">Вес</span>
+                  <span className="text-white font-medium">
+                    {profile.weight > 0 ? `${profile.weight} кг` : '-'}
+                  </span>
+                </div>
+                <div className="flex justify-between border-b border-slate-700 pb-2">
+                  <span className="text-slate-400">Цель</span>
+                  <span className="text-white font-medium">
+                    {profile.targetWeight > 0
+                      ? `${profile.targetWeight} кг`
+                      : '-'}
+                  </span>
+                </div>
+                <div className="flex justify-between border-b border-slate-700 pb-2">
+                  <span className="text-slate-400">Возраст</span>
+                  <span className="text-white font-medium">
+                    {profile.age > 0 ? profile.age : '-'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-bold text-slate-500 uppercase mb-3 tracking-wider ml-1">
+                Общий прогресс
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                <StatBox label="Тренировок" value={totalWorkouts} />
+                <StatBox label="Время" value={`${hours}ч ${minutes}м`} />
+                <StatBox label="Ккал" value={totalBurned} />
+              </div>
+            </div>
+
+            <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
+              <h3 className="text-lg font-medium text-white mb-4">
+                Средний уровень
+              </h3>
+              {avgLevel === 0 ? (
+                <p className="text-slate-500 text-sm">
+                  Нет активных упражнений
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between items-end h-12 gap-2">
+                    {[1, 2, 3, 4, 5].map((lvl) => (
+                      <div
+                        key={lvl}
+                        className={
+                          'flex-1 rounded-t-sm transition-all duration-500 ' +
+                          (lvl <= avgLevel ? 'bg-secondary' : 'bg-slate-700')
+                        }
+                        style={{ height: `${lvl * 20}%` }}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex justify-between text-xs text-slate-400 px-1">
+                    <span>1</span>
+                    <span>2</span>
+                    <span>3</span>
+                    <span>4</span>
+                    <span>5</span>
+                  </div>
+                  <p className="text-center text-white font-bold mt-2">
+                    Уровень {avgLevel}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      function SettingsScreen() {
+        const { profile, setProfile } = useApp();
+
+        const [formData, setFormData] = useState(profile);
+        const [showSaved, setShowSaved] = useState(false);
+
+        useEffect(() => {
+          setFormData(profile);
+        }, [profile]);
+
+        const handleChange = (field, value) => {
+          setFormData((prev) => ({
+            ...prev,
+            [field]: value,
+          }));
+        };
+
+        const handleSave = () => {
+          setProfile(formData);
+          setShowSaved(true);
+          setTimeout(() => setShowSaved(false), 2000);
+        };
+
+        const InputField = ({ label, type = 'number', value, onChange }) => (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-slate-400 uppercase tracking-wide ml-1">
+              {label}
+            </label>
+            <input
+              type={type}
+              value={value === 0 ? '' : value}
+              onChange={(e) =>
+                onChange(
+                  type === 'checkbox'
+                    ? e.target.checked
+                    : Number(e.target.value)
+                )
+              }
+              className="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-primary placeholder-slate-600"
+              placeholder="0"
+            />
+          </div>
+        );
+
+        return (
+          <div className="p-4 pt-6 space-y-8">
+            <h1 className="text-2xl font-bold text-center">НАСТРОЙКИ</h1>
+
+            <section className="space-y-4">
+              <h2 className="text-lg font-medium text-white border-l-4 border-primary pl-3">
+                Личные данные
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                <InputField
+                  label="Рост (см)"
+                  value={formData.height}
+                  onChange={(v) => handleChange('height', v)}
+                />
+                <InputField
+                  label="Вес (кг)"
+                  value={formData.weight}
+                  onChange={(v) => handleChange('weight', v)}
+                />
+                <InputField
+                  label="Возраст"
+                  value={formData.age}
+                  onChange={(v) => handleChange('age', v)}
+                />
+                <InputField
+                  label="Целевой вес (кг)"
+                  value={formData.targetWeight}
+                  onChange={(v) => handleChange('targetWeight', v)}
+                />
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <h2 className="text-lg font-medium text-white border-l-4 border-orange-500 pl-3">
+                Цели
+              </h2>
+              <InputField
+                label="Дневная норма калорий"
+                value={formData.dailyCaloriesTarget}
+                onChange={(v) => handleChange('dailyCaloriesTarget', v)}
+              />
+            </section>
+
+            <section className="space-y-4">
+              <h2 className="text-lg font-medium text-white border-l-4 border-purple-500 pl-3">
+                Интерфейс
+              </h2>
+
+              <div className="flex items-center justify-between bg-slate-800 p-4 rounded-xl border border-slate-700">
+                <span className="text-white">Напоминать о тренировках</span>
+                <button
+                  onClick={() =>
+                    handleChange(
+                      'remindersEnabled',
+                      !formData.remindersEnabled
+                    )
+                  }
+                  className={
+                    'w-12 h-7 rounded-full transition-colors relative ' +
+                    (formData.remindersEnabled
+                      ? 'bg-primary'
+                      : 'bg-slate-600')
+                  }
+                >
+                  <div
+                    className={
+                      'absolute top-1 left-1 bg-white w-5 h-5 rounded-full transition-transform ' +
+                      (formData.remindersEnabled ? 'translate-x-5' : '')
+                    }
+                  />
+                </button>
+              </div>
+
+              <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-2">
+                <span className="text-white block mb-2">Размер шрифта</span>
+                <div className="flex bg-slate-900 rounded-lg p-1">
+                  <button className="flex-1 py-2 text-xs text-slate-400 hover:text-white">
+                    Маленький
+                  </button>
+                  <button className="flex-1 py-2 text-sm bg-slate-700 rounded text-white shadow">
+                    Средний
+                  </button>
+                  <button className="flex-1 py-2 text-lg text-slate-400 hover:text-white">
+                    Крупный
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <button
+              onClick={handleSave}
+              className="w-full bg-secondary hover:bg-blue-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20 active:scale-95 transition-all"
+            >
+              <span>💾</span>
+              {showSaved ? 'СОХРАНЕНО!' : 'СОХРАНИТЬ ИЗМЕНЕНИЯ'}
+            </button>
+
+            <div className="h-8"></div>
+          </div>
+        );
+      }
+
+      function CalendarScreen() {
+        const {
+          navigate,
+          workoutHistory,
+          manualCalendarMarks,
+          toggleCalendarMark,
+        } = useApp();
+
+        const currentDate = new Date();
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+
+        const firstDayOfMonth = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        const startDayOffset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
+
+        const monthNames = [
+          'Январь',
+          'Февраль',
+          'Март',
+          'Апрель',
+          'Май',
+          'Июнь',
+          'Июль',
+          'Август',
+          'Сентябрь',
+          'Октябрь',
+          'Ноябрь',
+          'Декабрь',
+        ];
+
+        const weekDays = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
+
+        const getDateKey = (day) => {
+          return `${year}-${String(month + 1).padStart(2, '0')}-${String(
+            day
+          ).padStart(2, '0')}`;
+        };
+
+        const hasWorkout = (dateKey) => {
+          return workoutHistory.some((w) => w.date.startsWith(dateKey));
+        };
+
+        const isMarked = (dateKey) => {
+          return manualCalendarMarks.includes(dateKey);
+        };
+
+        const getDayStatus = (day) => {
+          const key = getDateKey(day);
+          const hw = hasWorkout(key);
+          const mk = isMarked(key);
+
+          if (hw) return 'workout';
+          if (mk) return 'marked';
+          return 'none';
+        };
+
+        const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+        const monthWorkouts = workoutHistory.filter((w) =>
+          w.date.startsWith(monthPrefix)
+        );
+
+        const totalWorkouts = monthWorkouts.length;
+        const totalSecs = monthWorkouts.reduce(
+          (acc, w) => acc + w.durationSeconds,
+          0
+        );
+        const totalCals = monthWorkouts.reduce(
+          (acc, w) => acc + w.caloriesBurned,
+          0
+        );
+
+        const hours = Math.floor(totalSecs / 3600);
+        const mins = Math.floor((totalSecs % 3600) / 60);
+
+        return (
+          <div className="p-4 pt-6 h-full flex flex-col bg-slate-900">
+            <div className="flex items-center mb-8">
+              <button
+                onClick={() => navigate(ScreenName.WORKOUTS)}
+                className="bg-slate-800 p-2 rounded-xl text-slate-300 hover:text-white mr-4"
+              >
+                ←
+              </button>
+              <h1 className="text-2xl font-bold">КАЛЕНДАРЬ ТРЕНИРОВОК</h1>
+            </div>
+
+            <div className="text-center text-primary font-medium text-lg mb-6 uppercase tracking-widest">
+              {monthNames[month]} {year}
+            </div>
+
+            <div className="grid grid-cols-7 gap-y-4 gap-x-2 mb-8 px-2">
+              {weekDays.map((d) => (
+                <div
+                  key={d}
+                  className="text-center text-xs text-slate-500 font-bold"
+                >
+                  {d}
+                </div>
+              ))}
+
+              {Array.from({ length: startDayOffset }).map((_, i) => (
+                <div key={`empty-${i}`} />
+              ))}
+
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const status = getDayStatus(day);
+                const dateKey = getDateKey(day);
+
+                let bgClass =
+                  'bg-transparent text-slate-300 hover:bg-slate-800';
+                let borderClass = 'border-transparent';
+
+                if (status === 'workout') {
+                  bgClass =
+                    'bg-primary text-slate-900 font-bold shadow-[0_0_10px_rgba(6,182,212,0.4)]';
+                } else if (status === 'marked') {
+                  bgClass = 'bg-transparent text-primary font-bold';
+                  borderClass = 'border-primary';
+                }
+
+                return (
+                  <div
+                    key={day}
+                    className="flex justify-center items-center aspect-square"
+                  >
+                    <button
+                      onClick={() => toggleCalendarMark(dateKey)}
+                      className={
+                        'w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-200 ' +
+                        bgClass +
+                        ' ' +
+                        borderClass
+                      }
+                    >
+                      {day}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="bg-slate-800 rounded-3xl p-6 border border-slate-700 mt-auto mb-8">
+              <div className="flex justify-between items-center mb-4 border-b border-slate-700 pb-4">
+                <span className="text-slate-400">Тренировок</span>
+                <span className="text-2xl font-bold text-white">
+                  {totalWorkouts}
+                </span>
+              </div>
+              <div className="flex justify-between items-center mb-4 border-b border-slate-700 pb-4">
+                <span className="text-slate-400">Время</span>
+                <span className="text-xl font-bold text-white">
+                  {hours} ч {mins} мин
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Сожжено</span>
+                <span className="text-xl font-bold text-primary">
+                  {totalCals} ккал
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      function NotesScreen() {
+        const { navigate, notes, addNote } = useApp();
+        const [activeCategory, setActiveCategory] = useState('Идеи');
+        const [isModalOpen, setIsModalOpen] = useState(false);
+        const [title, setTitle] = useState('');
+        const [body, setBody] = useState('');
+
+        const filteredNotes = notes.filter(
+          (n) => n.category === activeCategory
+        );
+
+        const handleSave = () => {
+          if (!title.trim()) return;
+
+          addNote({
+            id: Date.now().toString(),
+            title,
+            body,
+            date: new Date().toLocaleDateString('ru-RU'),
+            category: activeCategory,
+          });
+
+          setTitle('');
+          setBody('');
+          setIsModalOpen(false);
+        };
+
+        return (
+          <div className="p-4 pt-6 h-full flex flex-col bg-slate-900 relative">
+            <div className="flex items-center mb-6">
+              <button
+                onClick={() => navigate(ScreenName.GUIDE)}
+                className="bg-slate-800 p-2 rounded-xl text-slate-300 hover:text-white mr-4"
+              >
+                ←
+              </button>
+              <h1 className="text-2xl font-bold">ЗАМЕТКИ</h1>
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6 pb-2">
+              {NOTE_CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={
+                    'px-4 py-2 rounded-xl whitespace-nowrap text-sm font-medium transition-colors border ' +
+                    (activeCategory === cat
+                      ? 'bg-slate-800 border-primary text-white shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                      : 'bg-transparent border-slate-700 text-slate-400 hover:text-white')
+                  }
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 space-y-3 overflow-y-auto no-scrollbar pb-24">
+              {filteredNotes.length === 0 ? (
+                <div className="text-center text-slate-500 mt-20">
+                  Заметок пока нет
+                </div>
+              ) : (
+                filteredNotes.map((note) => (
+                  <div
+                    key={note.id}
+                    className="bg-slate-800 p-4 rounded-2xl border border-slate-700/50"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-bold text-white text-lg">
+                        {note.title}
+                      </h3>
+                      <span className="text-xs text-slate-500">
+                        {note.date}
+                      </span>
+                    </div>
+                    <p className="text-slate-400 text-sm leading-relaxed whitespace-pre-wrap">
+                      {note.body}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="fixed bottom-8 right-6 w-14 h-14 bg-primary text-slate-900 rounded-full flex items-center justify-center shadow-lg shadow-cyan-500/30 hover:bg-cyan-400 transition-transform active:scale-95 z-30"
+            >
+              <span className="text-3xl leading-none">+</span>
+            </button>
+
+            {isModalOpen && (
+              <div className="absolute inset-0 z-40 bg-slate-900/95 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-700 shadow-2xl">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold text-white">
+                      Новая заметка
+                    </h2>
+                    <button
+                      onClick={() => setIsModalOpen(false)}
+                      className="text-slate-400 hover:text-white text-xl"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs text-slate-400 uppercase ml-1">
+                        Заголовок
+                      </label>
+                      <input
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-primary"
+                        placeholder="..."
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 uppercase ml-1">
+                        Текст
+                      </label>
+                      <textarea
+                        value={body}
+                        onChange={(e) => setBody(e.target.value)}
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-primary h-32 resize-none"
+                        placeholder="..."
+                      />
+                    </div>
+
+                    <div className="flex gap-3 mt-4">
+                      <button
+                        onClick={() => setIsModalOpen(false)}
+                        className="flex-1 py-3 rounded-xl bg-slate-700 text-white font-medium hover:bg-slate-600 transition-colors"
+                      >
+                        Отмена
+                      </button>
+                      <button
+                        onClick={handleSave}
+                        className="flex-1 py-3 rounded-xl bg-primary text-slate-900 font-bold hover:bg-cyan-400 transition-colors"
+                      >
+                        Сохранить
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      function ScreenRouter() {
+        const { currentScreen } = useApp();
+
+        switch (currentScreen) {
+          case ScreenName.WORKOUTS:
+            return <WorkoutsScreen />;
+          case ScreenName.CALORIES:
+            return <CaloriesScreen />;
+          case ScreenName.GUIDE:
+            return <GuideScreen />;
+          case ScreenName.STATS:
+            return <StatsScreen />;
+          case ScreenName.SETTINGS:
+            return <SettingsScreen />;
+          case ScreenName.CALENDAR:
+            return <CalendarScreen />;
+          case ScreenName.NOTES:
+            return <NotesScreen />;
+          default:
+            return <WorkoutsScreen />;
+        }
+      }
+
+      function App() {
+        return (
+          <AppProvider>
+            <Layout>
+              <ScreenRouter />
+            </Layout>
+          </AppProvider>
+        );
+      }
+
+      const rootElement = document.getElementById('root');
+      if (!rootElement) {
+        throw new Error('Root element not found');
+      }
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(
+        <React.StrictMode>
+          <App />
+        </React.StrictMode>
+      );
+    </script>
+  </body>
+</html>
